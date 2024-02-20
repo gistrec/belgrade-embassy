@@ -102,14 +102,14 @@ driver = webdriver.Chrome(service=service, options=options)
 
 try:
     # Load embassy site
-    print("[1/5] Загружаем страницу с капчей")
+    print("[1/6] Загружаем страницу с капчей")
     driver.get(f'https://belgrad.kdmid.ru/queue/orderinfo.aspx?id={APPLICATION_NUMBER}&cd={SECURITY_CODE}')
     wait_until_element_loaded(driver, "id", "ctl00_MainContent_imgSecNum")
     resize_page(driver)
-    print("[1/5] Станица загружена")
+    print("[1/6] Станица загружена")
 
     # Save captcha image
-    print("[2/5] Отправляем капчу на решение")
+    print("[2/6] Отправляем капчу на решение")
     captcha_img_element = driver.find_element(By.ID, 'ctl00_MainContent_imgSecNum')
     captcha_img = captcha_img_element.screenshot_as_png
 
@@ -129,60 +129,80 @@ try:
     time.sleep(1)
     driver.find_element(By.ID, "ctl00_MainContent_ButtonA").click()
     time.sleep(1)
-    print("[2/5] Капча решена: " + captcha_text)
+    print("[2/6] Капча решена: " + captcha_text)
 
-    print("[3/5] Загружаем страницу с промежуточной кнопкой записи на приём")
+    print("[3/6] Загружаем страницу с промежуточной кнопкой записи на приём")
     wait_until_page_loaded(driver)
-    print("[3/5] Страница загружена")
+    print("[3/6] Страница загружена")
 
     text = "Символы с картинки введены не правильно"
     if text in driver.page_source:
-        print("[3/5] Капча решена не правильно")
+        print("[3/6] Капча решена не правильно")
         send_image_to_telegram(captcha_img, "Капча решена не правильно: " + captcha_text)
         send_page_to_telegram(driver, "Капча решена не правильно")
         captcha_solver.report_incorrect_image_captcha()
         driver.quit()
         exit(0)
 
-    print("[4/5] Нажимаем на промежуточную кнопку записи на приём")
+    print("[4/6] Нажимаем на промежуточную кнопку записи на приём")
     driver.find_element(By.ID, "ctl00_MainContent_ButtonB").click()
     time.sleep(1)
 
-    print("[4/5] Загружаем страницу со свободными слотами")
+    print("[4/6] Загружаем страницу со свободными слотами")
     wait_until_page_loaded(driver)
-    print("[4/5] Страница загружена")
+    print("[4/6] Страница загружена")
 
     text = "настоящий момент на интересующее Вас консульское действие в системе предварительной записи нет свободного времени"
     if text in driver.page_source:
-        print("[5/5] Свободных слотов нет")
+        print("[4/6] Свободных слотов нет")
         send_page_to_telegram(driver, "Свободных слотов нет")
         driver.quit()
         exit(0)
 
-    # Выбираем случайную дату
-    dates = driver.find_element(By.Name, "ctl00$MainContent$RadioButtonList1")
-    date = random.choice(dates)
+    print("[5/6] Нажимаем на случайную дату в календаре")
+
+    # Find all the available date elementss
+    date_elements = driver.find_elements(By.CSS_SELECTOR, "#ctl00_MainContent_Calendar td[style*='background-color:LightSeaGreen']")
+    # Filter out the disabled dates and extract the available dates
+    available_dates = [date_element for date_element in date_elements if not date_element.get_attribute("disabled")]
+    # Randomly click on one of the available dates
+    random.choice(available_dates).click()
+
+    time.sleep(1)
+    wait_until_page_loaded(driver)
+
+    print("[5/6] Нажимаем на случайное время в календаре")
+
+    # Find all the available time slot radio button elements
+    time_slot_elements = driver.find_elements(By.CSS_SELECTOR, "#ctl00_MainContent_RadioButtonList1 input")
+    # Filter out the disabled time slots and extract the available ones
+    available_time_slots = [time_slot_element for time_slot_element in time_slot_elements if not time_slot_element.get_attribute("disabled")]
+    # Randomly click on one of the available time slots
+    random.choice(available_time_slots).click()
+
+    time.sleep(1)
+    wait_until_page_loaded(driver)
 
     # Кликаем на кнопку "Записаться на приём"
-    print("[5/5] Нажмаем на кнопку записи на свободный слот")
+    print("[5/6] Нажмаем на кнопку записи на свободный слот")
     driver.find_element(By.ID, "ctl00_MainContent_Button1").click()
     time.sleep(1)
 
-    print("[5/5] Загружаем страницу с результатом записи")
+    print("[6/6] Загружаем страницу с результатом записи")
     wait_until_page_loaded(driver)
-    print("[5/5] Страница загружена")
+    print("[6/6] Страница загружена")
 
     text = "Вы получили подтверждение о записи на приём"
     if text in driver.page_source:
-        print("[5/5] Записались на приём")
+        print("[6/6] Записались на приём")
         send_page_to_telegram(driver, "Записались на приём")
     else:
-        print("[5/5] Ошибка во время записи на приём")
+        print("[6/6] Ошибка во время записи на приём")
         send_page_to_telegram(driver, "Ошибка во время записи на приём")
 
 except Exception as e:
     send_page_to_telegram(driver, "Ошибка во время выполнения скрипта")
     send_text_to_telegram(traceback.format_exc())
+    print(traceback.format_exc())
 finally:
     driver.quit()
-    exit(0)
